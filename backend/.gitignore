@@ -1,0 +1,74 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# Environment variables
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.env*.local
+
+# Build output
+dist/
+build/
+
+# Logs
+logs/
+*.log
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Testing
+coverage/
+.nyc_output/
+
+# Prisma
+.prisma/
+prisma/migrations/dev/
+prisma/dev.db
+prisma/db.sqlite
+prisma/db.sqlite-journal
+
+# OS files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Temp files
+*.swp
+*.swo
+*~
+.temp/
+.cache/
+
+# IDE
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+.project
+.classpath
+.settings/
+
+# Uploads
+uploads/*
+!uploads/.gitkeep
+
+# Serverless
+.serverless/
+.dynamodb/
+
+# Misc
+.tmp/
+temp/

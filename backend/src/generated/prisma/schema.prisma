@@ -1,0 +1,87 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String    @id @default(uuid())
+  email     String    @unique
+  password  String // Hashed password
+  name      String?
+  role      String    @default("user") // e.g., "user", "admin"
+  vehicles  Vehicle[]
+  bookings  Booking[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Service {
+  id          String           @id @default(uuid())
+  title       String           @unique
+  description String?
+  price       Float // Store price as a number
+  imageSrc    String?
+  bookings    BookingService[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model Vehicle {
+  id        String    @id @default(uuid())
+  brand     String
+  model     String
+  year      Int?
+  plate     String    @unique
+  color     String?
+  owner     User      @relation(fields: [ownerId], references: [id])
+  ownerId   String
+  bookings  Booking[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Booking {
+  id                  String   @id @default(uuid())
+  date                DateTime
+  time                String // Store time as string for simplicity (e.g., "09:00")
+  status              String   @default("pending") // e.g., "pending", "confirmed", "completed", "cancelled"
+  specialInstructions String?
+  location            String? // e.g., "Atendimento na Loja", "Endereço do Cliente"
+  clientPhone         String? // Optional: if different from user's main phone
+
+  user   User   @relation(fields: [userId], references: [id])
+  userId String
+
+  vehicle   Vehicle @relation(fields: [vehicleId], references: [id])
+  vehicleId String
+
+  services BookingService[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Many-to-many relationship between Booking and Service
+model BookingService {
+  id        String  @id @default(uuid())
+  booking   Booking @relation(fields: [bookingId], references: [id])
+  bookingId String
+  service   Service @relation(fields: [serviceId], references: [id])
+  serviceId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([bookingId, serviceId])
+}

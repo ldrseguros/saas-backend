@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: saas-estetica-backend
+    env: node
+    buildCommand: npm install && npx prisma generate && npx prisma migrate deploy
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+databases:
+  - name: saas-estetica-db
+    databaseName: saas_estetica_prod
+    user: saas_user

@@ -1,0 +1,323 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Definição do Enum para Roles
+enum Role {
+  SUPER_ADMIN // Administrador do SaaS
+  TENANT_ADMIN // Dono da estética 
+  EMPLOYEE    // Funcionário da estética
+  CLIENT      // Cliente final
+}
+
+// Definição do Enum para Status de Assinatura
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  TRIAL
+  EXPIRED
+}
+
+// Planos de assinatura disponíveis
+model SubscriptionPlan {
+  id                String         @id @default(uuid())
+  name              String         @unique // "Básico", "Profissional", "Premium"
+  description       String
+  price             Float
+  billingCycle      String         // "monthly", "yearly"
+  features          String[]       // Lista de recursos incluídos
+  isActive          Boolean        @default(true)
+  maxEmployees      Int            @default(1) // Número máximo de funcionários permitidos
+  maxClients        Int?           // Limite de clientes (null = ilimitado)
+  stripePriceId     String?        @unique
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  tenants           Tenant[]
+}
+
+// Representa uma estética (tenant)
+model Tenant {
+  id                String             @id @default(uuid())
+  name              String             // Nome do negócio
+  subdomain         String            @unique // Para URL personalizada
+  logo              String?            // URL do logo
+  contactEmail      String
+  contactPhone      String?
+  address           String?
+  city              String?
+  state             String?
+  zipCode           String?
+  isActive          Boolean            @default(true)
+  
+  // Relação com plano de assinatura
+  subscriptionPlan  SubscriptionPlan   @relation(fields: [planId], references: [id])
+  planId            String
+  
+  // Detalhes da assinatura
+  subscriptionStatus SubscriptionStatus @default(TRIAL)
+  trialEndsAt       DateTime?
+  subscriptionEndsAt DateTime?
+  stripeCustomerId  String?            // ID do cliente no Stripe
+  stripeSubscriptionId String?
+  
+  // Customização
+  primaryColor      String?            // Cor principal para personalização
+  secondaryColor    String?            // Cor secundária
+  
+  // Relacionamentos
+  accounts          AuthAccount[]
+  services          Service[]
+  bookings          Booking[]
+  vehicles          Vehicle[]
+  whatsAppMessages  WhatsAppMessage[]
+  whatsAppTemplates WhatsAppTemplate[]
+  clientProfiles       ClientProfile[]
+  
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+}
+
+// Unified authentication account
+model AuthAccount {
+  id         String           @id @default(uuid())
+  email      String           @unique
+  passwordHash   String           // Hashed password
+  role       Role
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  employee   EmployeeProfile?
+  client     ClientProfile?
+  
+  // Relação com tenant (exceto para SUPER_ADMIN)
+  tenant     Tenant?          @relation(fields: [tenantId], references: [id])
+  tenantId   String?
+
+  @@unique([email, tenantId])
+}
+
+// Employee profile linked one-to-one with AuthAccount
+model EmployeeProfile {
+  id        String      @id @default(uuid())
+  account   AuthAccount @relation(fields: [accountId], references: [id])
+  accountId String      @unique
+  name      String
+  phone     String?
+  position  String?     // Cargo
+  avatar    String?     // URL da foto
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+}
+
+// Client profile linked one-to-one with AuthAccount
+model ClientProfile {
+  id             String           @id @default(uuid())
+  account        AuthAccount      @relation(fields: [accountId], references: [id])
+  accountId      String           @unique
+  name           String
+  whatsapp       String?
+  vehicles       Vehicle[]
+  bookings       Booking[]
+  whatsappMessages WhatsAppMessage[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  tenant         Tenant          @relation(fields: [tenantId], references: [id])
+  tenantId       String
+}
+
+// Definição para templates de mensagens do WhatsApp
+model WhatsAppTemplate {
+  id        String   @id @default(uuid())
+  name      String
+  message   String
+  type      String // Por exemplo: "service_report", "booking_confirmation", etc.
+  
+  // Relação com tenant
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([name, tenantId])
+}
+
+// Definição para mensagens enviadas via WhatsApp
+model WhatsAppMessage {
+  id        String       @id @default(uuid())
+  client    ClientProfile @relation(fields: [clientId], references: [id])
+  clientId  String
+  message   String
+  mediaUrls String[]     // Array de URLs para mídia (imagens, vídeos, etc.)
+  status    String       // "pending", "sent", "delivered", "read", "failed"
+  
+  // Relação com tenant
+  tenant    Tenant       @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+}
+
+model Service {
+  id          String    @id @default(uuid())
+  title       String
+  description String?
+  price       Float // Store price as a number
+  duration    Int?      // Duration in minutes
+  imageSrc    String?
+  bookings    BookingService[]
+  
+  // Relação com tenant
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
+  tenantId    String
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@unique([title, tenantId])
+}
+
+model Vehicle {
+  id        String   @id @default(uuid())
+  brand     String
+  model     String
+  year      Int?
+  plate     String
+  color     String?
+  client    ClientProfile @relation(fields: [clientId], references: [id])
+  clientId  String
+  bookings  Booking[]
+  
+  // Relação com tenant
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Booking {
+  id                   String    @id @default(uuid())
+  date                 DateTime
+  time                 String    // Store time as string for simplicity (e.g., "09:00")
+  status               String    @default("pending") // e.g., "pending", "confirmed", "completed", "cancelled"
+  specialInstructions  String?
+  location             String?   // e.g., "Atendimento na Loja", "Endereço do Cliente"
+  clientPhone          String?   // Optional: if different from user's main phone
+
+  client               ClientProfile @relation(fields: [clientId], references: [id])
+  clientId             String
+
+  vehicle              Vehicle   @relation(fields: [vehicleId], references: [id])
+  vehicleId            String
+
+  services             BookingService[]
+  serviceReport        ServiceReport?
+  
+  // Relação com tenant
+  tenant               Tenant    @relation(fields: [tenantId], references: [id])
+  tenantId             String
+
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+}
+
+// Many-to-many relationship between Booking and Service
+model BookingService {
+  id        String @id @default(uuid())
+  booking   Booking @relation(fields: [bookingId], references: [id])
+  bookingId String
+  service   Service @relation(fields: [serviceId], references: [id])
+  serviceId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([bookingId, serviceId])
+}
+
+// Definição para relatórios de serviço
+model ServiceReport {
+  id           String   @id @default(uuid())
+  booking      Booking  @relation(fields: [bookingId], references: [id])
+  bookingId    String   @unique
+  beforePhotos String[]
+  afterPhotos  String[]
+  comments     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// Registro de pagamentos de assinatura
+model SubscriptionPayment {
+  id              String    @id @default(uuid())
+  tenantId        String    // ID do tenant
+  planId          String    // ID do plano
+  amount          Float
+  status          String    // "completed", "failed", "refunded"
+  paymentMethod   String    // "credit_card", "boleto", etc.
+  transactionId   String?   // ID da transação no provedor de pagamento
+  paymentDate     DateTime  @default(now())
+  nextBillingDate DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// Auditoria (logs de atividades importantes)
+model AuditLog {
+  id          String    @id @default(uuid())
+  tenantId    String?   // Pode ser null para logs de nível do sistema
+  userId      String?   // Quem realizou a ação
+  action      String    // "login", "signup", "payment", etc.
+  description String
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime  @default(now())
+}
+
+model Transaction {
+  id          String   @id @default(uuid())
+  type        TransactionType
+  description String
+  value       Float
+  date        DateTime
+  category    Category? @relation(fields: [categoryId], references: [id])
+  categoryId  String?
+  method      PaymentMethod? @relation(fields: [methodId], references: [id])
+  methodId    String?
+  tenantId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+model Category {
+  id    String   @id @default(uuid())
+  name  String
+  color String?
+  transactions Transaction[]
+  tenantId String
+}
+
+model PaymentMethod {
+  id    String   @id @default(uuid())
+  name  String
+  transactions Transaction[]
+  tenantId String
+}
