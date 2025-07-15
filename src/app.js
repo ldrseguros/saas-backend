@@ -66,9 +66,9 @@ if (process.env.NODE_ENV === "development") {
         "http://192.168.0.20:8080",
         "http://localhost:3000",
         // Seus domínios locais de teste (remova ou comente se não usar mais)
-        "http://meusaas.com.br:8080", 
-        "http://admin.meusaas.com.br:8080", 
-        "http://painel.meusaas.com.br:8080", 
+        "http://meusaas.com.br:8080",
+        "http://admin.meusaas.com.br:8080",
+        "http://painel.meusaas.com.br:8080",
         "http://esteticaas.meusaas.com.br:8080",
         "http://belezaurbana.meusaas.com.br:8080",
         "http://esteticaneon.meusaas.com.br:8080"
@@ -83,24 +83,28 @@ console.log("CORS: Origens Permitidas Finais:", finalAllowedOrigins.join(', '));
 app.use(
     cors({
         origin: function (origin, callback) {
-            // Permite requisições sem "origin" (como de apps mobile ou Postman) APENAS em ambiente de desenvolvimento
-            if (!origin && process.env.NODE_ENV === "development") {
-                console.log("CORS: Requisição sem 'Origin' permitida em desenvolvimento.");
+            // AQUI É A MUDANÇA PRINCIPAL: Permite requisições sem "origin"
+            // APENAS se a variável de ambiente ALLOW_UNDEFINED_ORIGIN_IN_PROD for "true".
+            // Isso cobre health checks, Postman ou outros serviços que podem não enviar 'Origin'.
+            if (!origin && process.env.ALLOW_UNDEFINED_ORIGIN_IN_PROD === "true") {
+                console.log("CORS: Requisição sem 'Origin' permitida via ALLOW_UNDEFINED_ORIGIN_IN_PROD.");
                 return callback(null, true);
             }
-            
+
+            // Se o origin for undefined E a flag não estiver ativa, bloqueia
+            if (!origin) {
+                console.error(`CORS BLOCKED: Origin 'undefined' is not allowed in production.`);
+                console.error(`CORS Configured Allowed List: ${finalAllowedOrigins.join(', ')}`);
+                return callback(new Error("Bloqueado pelo CORS: Origem indefinida não permitida."));
+            }
+
             // Verifica se a origem da requisição está na nossa lista de origens permitidas
             if (finalAllowedOrigins.includes(origin)) {
                 console.log(`CORS: Origem '${origin}' permitida.`);
                 callback(null, true);
             }
-            // Lógica para subdomínios.
-            // Em produção com HTTPS, a porta :8080 não seria relevante.
-            // Se você listar os subdomínios completos em CORS_ORIGIN, esta condição pode ser removida.
-            else if (process.env.BASE_DOMAIN && origin && origin.endsWith(`.${process.env.BASE_DOMAIN}:8080`)) {
-                // Esta condição agora se aplica tanto em dev quanto em prod se BASE_DOMAIN for configurado
-                // e a requisição ainda estiver vindo com :8080 (o que é incomum para prod com SSL).
-                // Recomenda-se listar as URLs completas em CORS_ORIGIN.
+            // Lógica para subdomínios (mantida como está)
+            else if (process.env.BASE_DOMAIN && origin.endsWith(`.${process.env.BASE_DOMAIN}:8080`)) {
                 console.log(`CORS: Subdomínio '${origin}' permitido via lógica de endsWith.`);
                 callback(null, true);
             }
@@ -114,6 +118,7 @@ app.use(
         credentials: true, // Importante se você estiver usando cookies ou headers de autorização
     })
 );
+// --- FIM DO BLOCO CORS ATUALIZADO FINAL ---
 // --- FIM DO BLOCO CORS ATUALIZADO ---
 
 // Middleware para Stripe Webhook (deve vir ANTES de express.json() porque o body é raw)
