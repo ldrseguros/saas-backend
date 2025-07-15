@@ -49,43 +49,72 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
 
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 
+// --- INÍCIO DO BLOCO CORS ATUALIZADO ---
 // Configurar CORS para permitir origens específicas
-const allowedOrigins = [
-    "http://localhost:8080",
-    "http://192.168.0.20:8080",
-    "http://localhost:3000",
-    "https://saas-estetica-automotiva.vercel.app",
-    "https://saas-estetica-automotiva.onrender.com",
-    
-    "http://meusaas.com.br:8080", 
-    "http://admin.meusaas.com.br:8080", 
-    "http://painel.meusaas.com.br:8080", 
+// A variável de ambiente CORS_ORIGIN no Render deve conter as URLs separadas por vírgula.
+// Ex: "https://saas-estetica-automotiva.vercel.app,http://localhost:8080"
+const envAllowedOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',').map(s => s.trim()) : [];
 
+// Conjunto final de origens permitidas
+let finalAllowedOrigins = [...envAllowedOrigins];
 
-    "http://esteticaas.meusaas.com.br:8080",
-    "http://belezaurbana.meusaas.com.br:8080",
-    "http://esteticaneon.meusaas.com.br:8080",
-    process.env.FRONTEND_URL,
-].filter(Boolean);
+// Adicione origens de desenvolvimento se necessário, mas APENAS se NODE_ENV for "development"
+if (process.env.NODE_ENV === "development") {
+    console.log("CORS: Ambiente de DESENVOLVIMENTO detectado. Adicionando origens locais.");
+    finalAllowedOrigins.push(
+        "http://localhost:8080",
+        "http://192.168.0.20:8080",
+        "http://localhost:3000",
+        // Seus domínios locais de teste (remova ou comente se não usar mais)
+        "http://meusaas.com.br:8080", 
+        "http://admin.meusaas.com.br:8080", 
+        "http://painel.meusaas.com.br:8080", 
+        "http://esteticaas.meusaas.com.br:8080",
+        "http://belezaurbana.meusaas.com.br:8080",
+        "http://esteticaneon.meusaas.com.br:8080"
+    );
+}
+
+// Remova duplicatas para evitar problemas e garanta que sejam URLs únicas
+finalAllowedOrigins = [...new Set(finalAllowedOrigins)];
+
+console.log("CORS: Origens Permitidas Finais:", finalAllowedOrigins.join(', '));
 
 app.use(
     cors({
         origin: function (origin, callback) {
+            // Permite requisições sem "origin" (como de apps mobile ou Postman) APENAS em ambiente de desenvolvimento
             if (!origin && process.env.NODE_ENV === "development") {
+                console.log("CORS: Requisição sem 'Origin' permitida em desenvolvimento.");
                 return callback(null, true);
             }
-            // Para testar subdomínios, você pode precisar de uma lógica mais sofisticada aqui
-            // ou adicionar explicitamente os subdomínios em 'allowedOrigins' como você fez
-            if (allowedOrigins.indexOf(origin) !== -1 || (origin && origin.endsWith(`.${process.env.BASE_DOMAIN}:8080`))) {
+            
+            // Verifica se a origem da requisição está na nossa lista de origens permitidas
+            if (finalAllowedOrigins.includes(origin)) {
+                console.log(`CORS: Origem '${origin}' permitida.`);
                 callback(null, true);
-            } else {
-                console.error(`CORS BLOCKED: Origin ${origin} is not in allowed list.`);
+            }
+            // Lógica para subdomínios.
+            // Em produção com HTTPS, a porta :8080 não seria relevante.
+            // Se você listar os subdomínios completos em CORS_ORIGIN, esta condição pode ser removida.
+            else if (process.env.BASE_DOMAIN && origin && origin.endsWith(`.${process.env.BASE_DOMAIN}:8080`)) {
+                // Esta condição agora se aplica tanto em dev quanto em prod se BASE_DOMAIN for configurado
+                // e a requisição ainda estiver vindo com :8080 (o que é incomum para prod com SSL).
+                // Recomenda-se listar as URLs completas em CORS_ORIGIN.
+                console.log(`CORS: Subdomínio '${origin}' permitido via lógica de endsWith.`);
+                callback(null, true);
+            }
+            else {
+                // Se a origem não for permitida, loga o erro e bloqueia
+                console.error(`CORS BLOCKED: Origin '${origin}' is not in allowed list.`);
+                console.error(`CORS Configured Allowed List: ${finalAllowedOrigins.join(', ')}`);
                 callback(new Error("Bloqueado pelo CORS"));
             }
         },
-        credentials: true,
+        credentials: true, // Importante se você estiver usando cookies ou headers de autorização
     })
 );
+// --- FIM DO BLOCO CORS ATUALIZADO ---
 
 // Middleware para Stripe Webhook (deve vir ANTES de express.json() porque o body é raw)
 app.post('/api/stripe-webhook', express.raw({ type: 'application/json' }), async (req, res) => {
