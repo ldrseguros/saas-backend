@@ -83,9 +83,7 @@ console.log("CORS: Origens Permitidas Finais:", finalAllowedOrigins.join(', '));
 app.use(
     cors({
         origin: function (origin, callback) {
-            // AQUI É A MUDANÇA PRINCIPAL: Permite requisições sem "origin"
-            // APENAS se a variável de ambiente ALLOW_UNDEFINED_ORIGIN_IN_PROD for "true".
-            // Isso cobre health checks, Postman ou outros serviços que podem não enviar 'Origin'.
+          
             if (!origin && process.env.ALLOW_UNDEFINED_ORIGIN_IN_PROD === "true") {
                 console.log("CORS: Requisição sem 'Origin' permitida via ALLOW_UNDEFINED_ORIGIN_IN_PROD.");
                 return callback(null, true);
@@ -118,8 +116,7 @@ app.use(
         credentials: true, // Importante se você estiver usando cookies ou headers de autorização
     })
 );
-// --- FIM DO BLOCO CORS ATUALIZADO FINAL ---
-// --- FIM DO BLOCO CORS ATUALIZADO ---
+
 
 // Middleware para Stripe Webhook (deve vir ANTES de express.json() porque o body é raw)
 app.post('/api/stripe-webhook', express.raw({ type: 'application/json' }), async (req, res) => {
