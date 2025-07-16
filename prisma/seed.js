@@ -119,41 +119,44 @@ async function main() {
     return await bcrypt.hash(password, 10);
   };
 
-  const createOrUpdateUser = async ({
-    email,
-    password,
-    role,
-    tenantId,
-    employeeName,
-    clientName,
-    whatsapp,
-  }) => {
-    return prisma.authAccount.upsert({
-      where: { email },
-      update: {},
-      create: {
-        email,
-        passwordHash: await hashPassword(password),
-        role,
-        tenantId,
-        ...(employeeName && {
-          employee: {
-            create: {
-              name: employeeName,
+const createOrUpdateUser = async ({
+  email,
+  password,
+  role,
+  tenantId,
+  employeeName,
+  clientName,
+  whatsapp,
+}) => {
+  return prisma.authAccount.upsert({
+    where: { email },
+    update: {},
+    create: {
+      email,
+      passwordHash: await hashPassword(password),
+      role,
+      tenantId,
+      ...(employeeName && {
+        employee: {
+          create: {
+            name: employeeName,
+          },
+        },
+      }),
+      ...(clientName && {
+        client: {
+          create: {
+            name: clientName,
+            whatsapp,
+            tenant: {
+              connect: { id: tenantId }, // 🔥 ISSO É OBRIGATÓRIO!
             },
           },
-        }),
-        ...(clientName && {
-          client: {
-            create: {
-              name: clientName,
-              whatsapp,
-            },
-          },
-        }),
-      },
-    });
-  };
+        },
+      }),
+    },
+  });
+};
 
   console.log("Criando usuários para tenant Premium...");
   await createOrUpdateUser({
