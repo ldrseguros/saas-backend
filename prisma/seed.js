@@ -4,7 +4,6 @@ import bcrypt from "bcrypt";
 const prisma = new PrismaClient();
 
 async function main() {
-  // Limpar dados existentes para evitar conflitos
   console.log("Limpando dados existentes...");
   await prisma.$transaction([
     // prisma.bookingService.deleteMany(),
@@ -14,13 +13,11 @@ async function main() {
     // prisma.clientProfile.deleteMany(),
     // prisma.employeeProfile.deleteMany(),
     // prisma.authAccount.deleteMany(),
-    // // prisma.subscriptionPayment.deleteMany(), // Comentado para evitar erro se a tabela não existir
     prisma.tenant.deleteMany(),
     prisma.subscriptionPlan.deleteMany(),
   ]);
 
   console.log("Criando planos...");
-  // Criar planos
   const basicPlan = await prisma.subscriptionPlan.create({
     data: {
       name: "Básico",
@@ -37,7 +34,6 @@ async function main() {
       maxClients: 100,
     },
   });
-  console.log("Basic Plan criado", basicPlan);
 
   const proPlan = await prisma.subscriptionPlan.create({
     data: {
@@ -55,8 +51,6 @@ async function main() {
       maxClients: 500,
     },
   });
-  console.log("Pro Plan criado", proPlan);
-
 
   const premiumPlan = await prisma.subscriptionPlan.create({
     data: {
@@ -71,13 +65,11 @@ async function main() {
         "Recursos de marketing",
       ],
       maxEmployees: 10,
-      maxClients: null, // Ilimitado
+      maxClients: null,
     },
   });
-  console.log("Premium Plan criado", premiumPlan);
 
   console.log("Criando tenants...");
-  // Criar tenants (estéticas)
   const premiumTenant = await prisma.tenant.create({
     data: {
       name: "Premium Estética",
@@ -91,7 +83,7 @@ async function main() {
       subscriptionStatus: "ACTIVE",
       planId: premiumPlan.id,
       stripeCustomerId: "cus_premium123",
-      subscriptionEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 dias
+      subscriptionEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     },
   });
 
@@ -108,7 +100,7 @@ async function main() {
       subscriptionStatus: "ACTIVE",
       planId: proPlan.id,
       stripeCustomerId: "cus_modelo123",
-      subscriptionEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 dias
+      subscriptionEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     },
   });
 
@@ -125,143 +117,121 @@ async function main() {
       subscriptionStatus: "TRIAL",
       planId: basicPlan.id,
       stripeCustomerId: "cus_teste123",
-      trialEndsAt: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000), // 15 dias de trial
+      trialEndsAt: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000),
     },
   });
 
-  // Registrar pagamentos de assinatura
-  // Remover ou comentar os blocos de criação de subscriptionPayment se não for mais necessário
-  // await prisma.subscriptionPayment.create({ ... });
-  // await prisma.subscriptionPayment.create({ ... });
-
-  // Função para criar hash de senha
   const hashPassword = async (password) => {
     return await bcrypt.hash(password, 10);
   };
 
-  console.log("Criando usuários para tenant Premium...");
-  // Criar usuários para tenant Premium
-  const premiumAdmin = await prisma.authAccount.create({
-    data: {
-      email: "admin@premium.com",
-      passwordHash: await hashPassword("Senha123"),
-      role: "TENANT_ADMIN",
-      tenantId: premiumTenant.id,
-      employee: {
-        create: {
-          name: "Administrador Premium",
-        },
+  const createOrUpdateUser = async ({
+    email,
+    password,
+    role,
+    tenantId,
+    employeeName,
+    clientName,
+    whatsapp,
+  }) => {
+    return prisma.authAccount.upsert({
+      where: { email },
+      update: {},
+      create: {
+        email,
+        passwordHash: await hashPassword(password),
+        role,
+        tenantId,
+        ...(employeeName && {
+          employee: {
+            create: {
+              name: employeeName,
+            },
+          },
+        }),
+        ...(clientName && {
+          client: {
+            create: {
+              name: clientName,
+              whatsapp,
+            },
+          },
+        }),
       },
-    },
+    });
+  };
+
+  console.log("Criando usuários para tenant Premium...");
+  await createOrUpdateUser({
+    email: "admin@premium.com",
+    password: "Senha123",
+    role: "TENANT_ADMIN",
+    tenantId: premiumTenant.id,
+    employeeName: "Administrador Premium",
   });
 
-  const premiumFunc = await prisma.authAccount.create({
-    data: {
-      email: "funcionario@premium.com",
-      passwordHash: await hashPassword("Senha123"),
-      role: "EMPLOYEE",
-      tenantId: premiumTenant.id,
-      employee: {
-        create: {
-          name: "Funcionário Premium",
-        },
-      },
-    },
+  await createOrUpdateUser({
+    email: "funcionario@premium.com",
+    password: "Senha123",
+    role: "EMPLOYEE",
+    tenantId: premiumTenant.id,
+    employeeName: "Funcionário Premium",
   });
 
   console.log("Criando usuários para tenant Teste...");
-  // Criar usuários para tenant Teste (principal para testes)
-  const testeAdmin = await prisma.authAccount.create({
-    data: {
-      email: "admin@teste.com",
-      passwordHash: await hashPassword("Senha123"),
-      role: "TENANT_ADMIN",
-      tenantId: testeTenant.id,
-      employee: {
-        create: {
-          name: "Administrador Teste",
-        },
-      },
-    },
+  const cliente1Account = await createOrUpdateUser({
+    email: "joao@exemplo.com",
+    password: "Senha123",
+    role: "CLIENT",
+    tenantId: testeTenant.id,
+    clientName: "João Silva",
+    whatsapp: "11999998888",
   });
 
-  const testeFunc = await prisma.authAccount.create({
-    data: {
-      email: "funcionario@teste.com",
-      passwordHash: await hashPassword("Senha123"),
-      role: "EMPLOYEE",
-      tenantId: testeTenant.id,
-      employee: {
-        create: {
-          name: "Funcionário Teste",
-        },
-      },
-    },
+  const cliente2Account = await createOrUpdateUser({
+    email: "maria@exemplo.com",
+    password: "Senha123",
+    role: "CLIENT",
+    tenantId: testeTenant.id,
+    clientName: "Maria Oliveira",
+    whatsapp: "11997776666",
   });
 
-  // Criar clientes para tenant Teste
-  console.log("Criando clientes para tenant Teste...");
-
-  const cliente1Account = await prisma.authAccount.create({
-    data: {
-      email: "joao@exemplo.com",
-      passwordHash: await hashPassword("Senha123"),
-      role: "CLIENT",
-      tenantId: testeTenant.id,
-      client: {
-        create: {
-          name: "João Silva",
-          whatsapp: "11999998888",
-        },
-      },
-    },
+  const cliente3Account = await createOrUpdateUser({
+    email: "carlos@exemplo.com",
+    password: "Senha123",
+    role: "CLIENT",
+    tenantId: testeTenant.id,
+    clientName: "Carlos Pereira",
+    whatsapp: "11995554444",
   });
 
-  const cliente2Account = await prisma.authAccount.create({
-    data: {
-      email: "maria@exemplo.com",
-      password: await hashPassword("Senha123"),
-      role: "CLIENT",
-      tenantId: testeTenant.id,
-      client: {
-        create: {
-          name: "Maria Oliveira",
-          whatsapp: "11997776666",
-        },
-      },
-    },
+  await createOrUpdateUser({
+    email: "admin@teste.com",
+    password: "Senha123",
+    role: "TENANT_ADMIN",
+    tenantId: testeTenant.id,
+    employeeName: "Administrador Teste",
   });
 
-  const cliente3Account = await prisma.authAccount.create({
-    data: {
-      email: "carlos@exemplo.com",
-      password: await hashPassword("Senha123"),
-      role: "CLIENT",
-      tenantId: testeTenant.id,
-      client: {
-        create: {
-          name: "Carlos Pereira",
-          whatsapp: "11995554444",
-        },
-      },
-    },
+  await createOrUpdateUser({
+    email: "funcionario@teste.com",
+    password: "Senha123",
+    role: "EMPLOYEE",
+    tenantId: testeTenant.id,
+    employeeName: "Funcionário Teste",
   });
 
-  // Buscar perfis de clientes criados
+  console.log("Criando veículos para os clientes...");
   const cliente1 = await prisma.clientProfile.findFirst({
     where: { accountId: cliente1Account.id },
   });
-
   const cliente2 = await prisma.clientProfile.findFirst({
     where: { accountId: cliente2Account.id },
   });
-
   const cliente3 = await prisma.clientProfile.findFirst({
     where: { accountId: cliente3Account.id },
   });
-
-  // Criar veículos para os clientes
-  console.log("Criando veículos para os clientes...");
 
   const veiculo1 = await prisma.vehicle.create({
     data: {
@@ -300,13 +270,12 @@ async function main() {
   });
 
   console.log("Criando serviços para tenant Teste...");
-  // Criar serviços para tenant Teste
   const lavagem = await prisma.service.create({
     data: {
       title: "Lavagem Completa",
       description: "Lavagem externa e interna completa com produtos premium",
       price: 80.0,
-      duration: 60, // Minutos
+      duration: 60,
       tenantId: testeTenant.id,
     },
   });
@@ -317,7 +286,7 @@ async function main() {
       description:
         "Polimento completo da carroceria para remover riscos superficiais",
       price: 200.0,
-      duration: 180, // Minutos
+      duration: 180,
       tenantId: testeTenant.id,
     },
   });
@@ -328,7 +297,7 @@ async function main() {
       description:
         "Limpeza profunda de todo interior do veículo incluindo bancos e carpetes",
       price: 150.0,
-      duration: 120, // Minutos
+      duration: 120,
       tenantId: testeTenant.id,
     },
   });
@@ -339,21 +308,18 @@ async function main() {
       description:
         "Proteção e brilho para a pintura com durabilidade de até 6 meses",
       price: 250.0,
-      duration: 240, // Minutos
+      duration: 240,
       tenantId: testeTenant.id,
     },
   });
 
   console.log("Criando agendamentos para tenant Teste...");
-  // Criar agendamentos para tenant Teste
-  // Hoje
   const hoje = new Date();
   const amanha = new Date(hoje);
   amanha.setDate(hoje.getDate() + 1);
   const depoisAmanha = new Date(hoje);
   depoisAmanha.setDate(hoje.getDate() + 2);
 
-  // Booking 1 - Hoje
   const booking1 = await prisma.booking.create({
     data: {
       date: hoje,
@@ -366,7 +332,6 @@ async function main() {
     },
   });
 
-  // Vincular serviço ao agendamento (BookingService)
   await prisma.bookingService.create({
     data: {
       bookingId: booking1.id,
@@ -374,7 +339,6 @@ async function main() {
     },
   });
 
-  // Booking 2 - Hoje
   const booking2 = await prisma.booking.create({
     data: {
       date: hoje,
@@ -393,7 +357,6 @@ async function main() {
     },
   });
 
-  // Booking 3 - Amanhã
   const booking3 = await prisma.booking.create({
     data: {
       date: amanha,
@@ -412,7 +375,6 @@ async function main() {
     },
   });
 
-  // Booking 4 - Amanhã
   const booking4 = await prisma.booking.create({
     data: {
       date: amanha,
@@ -431,7 +393,6 @@ async function main() {
     },
   });
 
-  // Booking 5 - Depois de amanhã
   const booking5 = await prisma.booking.create({
     data: {
       date: depoisAmanha,
