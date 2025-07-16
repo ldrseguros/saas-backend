@@ -1,3 +1,4 @@
+
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
 
@@ -6,13 +7,6 @@ const prisma = new PrismaClient();
 async function main() {
   console.log("Limpando dados existentes...");
   await prisma.$transaction([
-    // prisma.bookingService.deleteMany(),
-    // prisma.booking.deleteMany(),
-    // prisma.vehicle.deleteMany(),
-    // prisma.service.deleteMany(),
-    // prisma.clientProfile.deleteMany(),
-    // prisma.employeeProfile.deleteMany(),
-    // prisma.authAccount.deleteMany(),
     prisma.tenant.deleteMany(),
     prisma.subscriptionPlan.deleteMany(),
   ]);
@@ -283,8 +277,7 @@ async function main() {
   const polimento = await prisma.service.create({
     data: {
       title: "Polimento",
-      description:
-        "Polimento completo da carroceria para remover riscos superficiais",
+      description: "Polimento completo da carroceria para remover riscos superficiais",
       price: 200.0,
       duration: 180,
       tenantId: testeTenant.id,
@@ -294,8 +287,7 @@ async function main() {
   const higienizacao = await prisma.service.create({
     data: {
       title: "Higienização Interna",
-      description:
-        "Limpeza profunda de todo interior do veículo incluindo bancos e carpetes",
+      description: "Limpeza profunda de todo interior do veículo incluindo bancos e carpetes",
       price: 150.0,
       duration: 120,
       tenantId: testeTenant.id,
@@ -305,8 +297,7 @@ async function main() {
   const cristalizacao = await prisma.service.create({
     data: {
       title: "Cristalização",
-      description:
-        "Proteção e brilho para a pintura com durabilidade de até 6 meses",
+      description: "Proteção e brilho para a pintura com durabilidade de até 6 meses",
       price: 250.0,
       duration: 240,
       tenantId: testeTenant.id,
